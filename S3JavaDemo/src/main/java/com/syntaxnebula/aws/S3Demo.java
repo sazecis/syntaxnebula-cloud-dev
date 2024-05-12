@@ -11,6 +11,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.io.IOException;
+import software.amazon.awssdk.services.s3.model.NotificationConfiguration;
+import software.amazon.awssdk.services.s3.model.TopicConfiguration;
+import software.amazon.awssdk.services.s3.model.PutBucketNotificationConfigurationRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import java.util.Arrays;
 
 public class S3Demo {
     private static S3Client s3;
@@ -24,6 +29,7 @@ public class S3Demo {
             System.out.println("  download-object <bucket-name> <object-key> - Downloads an object from the specified S3 bucket.");
             System.out.println("  delete-bucket <bucket-name> - Deletes the specified S3 bucket (must be empty).");
             System.out.println("  create-website <bucket-name> - Configures the specified S3 bucket for static website hosting.");
+            System.out.println("  add-notification <bucket-name> <topic-arn> - Configures the specified S3 bucket to send notification when a new object is uploaded.");
             System.out.println();
             System.out.println("Options:");
             System.out.println("  help - Shows this help message.");
@@ -78,6 +84,13 @@ public class S3Demo {
                         System.exit(1);
                     }
                     createStaticWebsite(args[1]);
+                    break;
+                case "add-notification":
+                    if (args.length <3) {
+                        System.out.println("Bucket name and topic ARN is required");
+                        System.exit(1);
+                    }
+                    addNotification(args[1], args[2]);
                     break;
                 default:
                     System.out.println("Invalid command");
@@ -244,6 +257,30 @@ public class S3Demo {
         } catch (S3Exception ex) {
             System.err.println("Error deleting bucket: " + ex.awsErrorDetails().errorMessage());
             System.exit(1);
+        }
+    }
+
+    private static void addNotification(String bucketName, String topicArn) {
+        try {
+            TopicConfiguration topicConfig = TopicConfiguration.builder()
+                .id("NewObjectCreationNotification") 
+                .events(Arrays.asList(Event.S3_OBJECT_CREATED)) 
+                .topicArn(topicArn) 
+                .build();
+    
+            NotificationConfiguration notificationConfiguration = NotificationConfiguration.builder()
+                .topicConfigurations(topicConfig)
+                .build();
+    
+            PutBucketNotificationConfigurationRequest request = PutBucketNotificationConfigurationRequest.builder()
+                .bucket(bucketName)
+                .notificationConfiguration(notificationConfiguration)
+                .build();
+            
+            s3.putBucketNotificationConfiguration(request);
+            System.out.println("Notification configuration added successfully for bucket: " + bucketName);
+        } catch (S3Exception e) {
+            System.err.println("Failed to add notification configuration: " + e.awsErrorDetails().errorMessage());
         }
     }
     
